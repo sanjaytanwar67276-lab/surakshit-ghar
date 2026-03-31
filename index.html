@@ -52,6 +52,8 @@
         .maps-btn { background: #00d2ff; color: #000; border: none; padding: 10px 5px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.3;}
         .maps-btn span { font-size: 1.2rem; margin-bottom: 3px; }
         
+        .logout-link { color: #ff4444; font-size: 0.9rem; text-decoration: underline; display: inline-block; margin-top: 20px; cursor: pointer; }
+        
         h1, h2, h3 { margin-top: 0; }
         .status-text { color: #00ff88; font-weight: bold; }
     </style>
@@ -93,6 +95,8 @@
         <hr style="border: 0.5px solid #333; margin: 25px 0;">
         <button class="btn btn-sos" onclick="sendSOS()">🚨 SEND SOS ALERT</button>
         <p style="color: #888; font-size: 0.8rem; margin-top: 10px;">Press only in real emergency. It will alert everyone in your group.</p>
+        
+        <span class="logout-link" onclick="logoutApp()">🚪 Group Se Bahar Niklein (Logout)</span>
     </div>
 
     <div id="sender-screen" class="card">
@@ -101,8 +105,8 @@
         <p style="color: #00d2ff; font-weight: bold;" id="bat-stat">Battery: --%</p>
         
         <hr style="border: 0.5px solid #333; margin: 20px 0;">
-        <p style="color: #aaa;">Update Interval: <span id="time-val" style="font-weight: bold; color: #00d2ff;">30</span> Minute(s)</p>
-        <input type="range" min="1" max="120" value="30" class="slider" id="time-slider">
+        <p style="color: #aaa;">Update Interval: <span id="time-val" style="font-weight: bold; color: #00d2ff;">2</span> Minute(s)</p>
+        <input type="range" min="1" max="120" value="2" class="slider" id="time-slider">
 
         <button class="btn" id="start-btn" onclick="startSending()">🛡️ START SERVICE</button>
         <button class="btn btn-red" onclick="showScreen('dashboard-screen')">🔙 Go Back</button>
@@ -153,6 +157,7 @@
     let myName = "";
     let myFamilyCode = "";
     let timerId = null;
+    const tickSound = new Audio('https://www.soundjay.com/buttons/sounds/button-09.mp3'); // BEEP SOUND
 
     // --- SMART BACK BUTTON LOGIC ---
     function goBackFromHelpline() {
@@ -160,6 +165,17 @@
             showScreen('login-screen');
         } else {
             showScreen('dashboard-screen');
+        }
+    }
+
+    // --- AUTO LOGIN CHECK ON APP LOAD ---
+    window.onload = function() {
+        let savedName = localStorage.getItem("sg_name");
+        let savedCode = localStorage.getItem("sg_code");
+        if(savedName && savedCode) {
+            document.getElementById('user-name').value = savedName;
+            document.getElementById('family-code').value = savedCode;
+            login(); // Seedha app ke andar le jayega
         }
     }
 
@@ -180,63 +196,34 @@
         let mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(query);
         window.open(mapsUrl, "_blank");
     }
-
     // --- 40 EMERGENCY HELPLINE NUMBERS ---
     const helplines = [
-        { name: "National Emergency", num: "112" },
-        { name: "Police", num: "100" },
-        { name: "Fire", num: "101" },
-        { name: "Ambulance", num: "102" },
-        { name: "Disaster Management", num: "108" },
-        { name: "Women Helpline", num: "1091" },
-        { name: "Domestic Abuse", num: "181" },
-        { name: "Child Helpline", num: "1098" },
-        { name: "Senior Citizen Helpline", num: "14567" },
-        { name: "Cyber Crime Helpline", num: "1930" },
-        { name: "Road Accident/Traffic", num: "1073" },
-        { name: "Railway Enquiry", num: "139" },
-        { name: "Anti Poison", num: "1066" },
-        { name: "COVID / Health Helpline", num: "104" },
-        { name: "Kisan Call Centre", num: "1551" },
-        { name: "Blood Bank Info", num: "1910" },
-        { name: "Tourist Helpline", num: "1363" },
-        { name: "LPG Leakage", num: "1906" },
-        { name: "Earthquake / Floods", num: "1070" },
-        { name: "AIDS Helpline", num: "1097" },
-        { name: "Mental Health (KIRAN)", num: "18005990019" },
-        { name: "Consumer Helpline", num: "1915" },
-        { name: "Voter Helpline", num: "1950" },
-        { name: "Aadhaar Helpline", num: "1947" },
-        { name: "Passport Enquiry", num: "18002581800" },
-        { name: "RTI Helpline", num: "01123385629" },
-        { name: "Income Tax Enquiry", num: "1961" },
-        { name: "CM Helpline (UP)", num: "1076" },
-        { name: "Women Power Line (UP)", num: "1090" },
-        { name: "Animal Helpline", num: "1962" },
-        { name: "Post Office Helpline", num: "1924" },
-        { name: "NDRF", num: "9711077372" },
-        { name: "Poison Control (AIIMS)", num: "01126593677" },
-        { name: "Anti-Ragging", num: "18001805522" },
-        { name: "Student Helpline", num: "1800118004" },
-        { name: "Bank Frauds (RBI)", num: "14440" },
-        { name: "Narcotics Helpline", num: "1908" },
-        { name: "IRCTC (Food Complaint)", num: "1323" },
-        { name: "Highway Help (NHAI)", num: "1033" },
-        { name: "Corruption (CBI)", num: "01124361273" }
+        { name: "National Emergency", num: "112" }, { name: "Police", num: "100" },
+        { name: "Fire", num: "101" }, { name: "Ambulance", num: "102" },
+        { name: "Disaster Management", num: "108" }, { name: "Women Helpline", num: "1091" },
+        { name: "Domestic Abuse", num: "181" }, { name: "Child Helpline", num: "1098" },
+        { name: "Senior Citizen Helpline", num: "14567" }, { name: "Cyber Crime Helpline", num: "1930" },
+        { name: "Road Accident/Traffic", num: "1073" }, { name: "Railway Enquiry", num: "139" },
+        { name: "Anti Poison", num: "1066" }, { name: "COVID / Health Helpline", num: "104" },
+        { name: "Kisan Call Centre", num: "1551" }, { name: "Blood Bank Info", num: "1910" },
+        { name: "Tourist Helpline", num: "1363" }, { name: "LPG Leakage", num: "1906" },
+        { name: "Earthquake / Floods", num: "1070" }, { name: "AIDS Helpline", num: "1097" },
+        { name: "Mental Health (KIRAN)", num: "18005990019" }, { name: "Consumer Helpline", num: "1915" },
+        { name: "Voter Helpline", num: "1950" }, { name: "Aadhaar Helpline", num: "1947" },
+        { name: "Passport Enquiry", num: "18002581800" }, { name: "RTI Helpline", num: "01123385629" },
+        { name: "Income Tax Enquiry", num: "1961" }, { name: "CM Helpline (UP)", num: "1076" },
+        { name: "Women Power Line (UP)", num: "1090" }, { name: "Animal Helpline", num: "1962" },
+        { name: "Post Office Helpline", num: "1924" }, { name: "NDRF", num: "9711077372" },
+        { name: "Poison Control (AIIMS)", num: "01126593677" }, { name: "Anti-Ragging", num: "18001805522" },
+        { name: "Student Helpline", num: "1800118004" }, { name: "Bank Frauds (RBI)", num: "14440" },
+        { name: "Narcotics Helpline", num: "1908" }, { name: "IRCTC (Food Complaint)", num: "1323" },
+        { name: "Highway Help (NHAI)", num: "1033" }, { name: "Corruption (CBI)", num: "01124361273" }
     ];
 
     function loadHelplines() {
         let html = "";
         helplines.forEach(h => {
-            html += `
-            <div class="help-item">
-                <div class="help-info">
-                    <div class="help-name">${h.name}</div>
-                    <div class="help-num">${h.num}</div>
-                </div>
-                <a href="tel:${h.num}" class="call-btn">📞 Call</a>
-            </div>
-            `;
+            html += `<div class="help-item"><div class="help-info"><div class="help-name">${h.name}</div><div class="help-num">${h.num}</div></div><a href="tel:${h.num}" class="call-btn">📞 Call</a></div>`;
         });
         document.getElementById('helpline-list').innerHTML = html;
     }
@@ -245,9 +232,7 @@
     function generateCode() {
         let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let newCode = '';
-        for (let i = 0; i < 6; i++) {
-            newCode += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        for (let i = 0; i < 6; i++) { newCode += chars.charAt(Math.floor(Math.random() * chars.length)); }
         document.getElementById('family-code').value = newCode;
         alert("Success! Your new secure Family Code is: " + newCode);
     }
@@ -271,12 +256,27 @@
         
         myName = nameInput;
         myFamilyCode = codeInput.toUpperCase();
+        
+        // SAVE FOR AUTO-LOGIN
+        localStorage.setItem("sg_name", myName);
+        localStorage.setItem("sg_code", myFamilyCode);
+
         document.getElementById('welcome-text').innerText = "Hello, " + myName + "!";
         document.getElementById('group-code-display').innerText = myFamilyCode;
         
         showScreen('dashboard-screen');
         listenForAlerts(); 
         loadGroupMembers(); 
+    }
+
+    // --- LOGOUT FUNCTION ---
+    function logoutApp() {
+        let confirmLogout = confirm("🚪 Kya aap sach mein group se bahar aana chahte hain?");
+        if(confirmLogout) {
+            localStorage.removeItem("sg_name");
+            localStorage.removeItem("sg_code");
+            window.location.reload();
+        }
     }
 
     function loadGroupMembers() {
@@ -297,6 +297,8 @@
     slider.oninput = function() { document.getElementById("time-val").innerText = this.value; }
 
     async function updateData() {
+        tickSound.play().catch(e => console.log("Sound error")); // BEEP SOUND HOGA
+
         let currentBat = 100;
         try {
             if (navigator.getBattery) {
@@ -346,9 +348,7 @@
             let html = ""; let hasData = false;
             snapshot.forEach((child) => {
                 hasData = true; let memberName = child.key; let data = child.val();
-                
                 let mapUrl = "https://www.google.com/maps/search/?api=1&query=" + data.lat + "," + data.lon;
-                
                 html += `
                 <div class="member-card">
                     <div class="member-name">👤 ${memberName}</div>
@@ -365,7 +365,8 @@
     function listenForAlerts() {
         db.ref('alerts/' + myFamilyCode).on('child_added', (snapshot) => {
             let data = snapshot.val();
-            if(data && data.msg) {
+            // Sirf wahi alert dikhaye jo abhi (last 1 min) mein aaye ho
+            if(data && (new Date().getTime() - data.timestamp < 60000)) {
                 document.getElementById('danger-alert').style.display = "block";
                 document.getElementById('danger-alert').innerText = "⚠️ " + data.msg;
                 alert("EMERGENCY ALERT: " + data.msg); 
