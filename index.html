@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surakshit Ghar - Family Safety</title>
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<body>
+
+    <div id="danger-alert" class="alert-box">⚠️ EMERGENCY ALERT!</div>
+
+    <div id="login-screen" class="card" style="display: block;">
+        <h1 style="color: #00d2ff;">🛡️ Surakshit Ghar</h1>
+        <p style="color: #aaa;">Family Safety Application</p>
+        <input type="text" id="user-name" placeholder="Enter Your Name (e.g. Sanjay)">
+        <input type="text" id="family-code" placeholder="Enter Family Group Code">
+        <button class="btn btn-blue btn-small" onclick="generateCode()">🎲 Generate New Group Code</button>
+        <span class="hint-text">New here? Click above to generate code.</span>
+        <button class="btn" onclick="login()">Enter App ➡️</button>
+        <hr style="border: 0.5px solid #333; margin: 20px 0;">
+        <button class="btn btn-red" onclick="showScreen('helpline-screen')">🚨 Emergency Help & Nearby</button>
+    </div>
+
+    <div id="dashboard-screen" class="card">
+        <h2 id="welcome-text">Welcome!</h2>
+        <div class="group-box">
+            <h4 class="group-title">👥 Active Group: <span id="group-code-display" style="color:#00ff88;"></span></h4>
+            <div class="active-members" id="group-members-list">Loading members...</div>
+            <button class="btn btn-green btn-small" style="width: 100%; margin-top: 15px;" onclick="inviteWhatsApp()">💬 Invite via WhatsApp</button>
+        </div>
+        <p style="margin-top: 25px; color: #aaa;">What would you like to do?</p>
+        <button class="btn" onclick="showScreen('sender-screen')">📡 Share My Location</button>
+        <button class="btn btn-blue" onclick="showScreen('receiver-screen')">👨‍👩‍👧 View Family Status</button>
+        <hr style="border: 0.5px solid #333; margin: 25px 0;">
+        <button class="btn btn-blue" id="mic-btn" onclick="toggleRecording()">🎤 Start Voice Record</button>
+        <p style="color: #888; font-size: 0.8rem; margin-top: 10px;">Stop karne par aawaz family ko jayegi.</p>
+        <hr style="border: 0.5px solid #333; margin: 25px 0;">
+        <button class="btn btn-sos" onclick="sendSOS()">🚨 SEND SOS ALERT</button>
+        <span class="logout-link" onclick="logoutApp()">🚪 Group Se Bahar Niklein (Logout)</span>
+    </div>
+
+    <div id="sender-screen" class="card">
+        <h3>📡 Share Location</h3>
+        <p class="status-text" id="loc-stat">Location: Not Active</p>
+        <p style="color: #00d2ff; font-weight: bold;" id="bat-stat">Battery: --%</p>
+        <hr style="border: 0.5px solid #333; margin: 20px 0;">
+        <p style="color: #aaa;">Update Interval: <span id="time-val" style="font-weight: bold; color: #00d2ff;">2</span> Minute(s)</p>
+        <input type="range" min="1" max="120" value="2" class="slider" id="time-slider">
+        <button class="btn" id="start-btn" onclick="startSending()">🛡️ START SERVICE</button>
+        <button class="btn btn-red" onclick="showScreen('dashboard-screen')">🔙 Go Back</button>
+    </div>
+
+    <div id="receiver-screen" class="card">
+        <h3>👨‍👩‍👧 Family Status</h3>
+        <div id="family-list"><p style="color: #aaa;">Loading family data...</p></div>
+        <button class="btn btn-red" onclick="showScreen('dashboard-screen')">🔙 Go Back</button>
+    </div>
+
+    <div id="helpline-screen" class="card">
+        <h3 style="color: #ff4444;">🚨 Emergency Services</h3>
+        <div class="maps-btn-group">
+            <button class="maps-btn" onclick="findNearby('24 hours emergency hospital near me')"><span>🏥</span> Hospitals</button>
+            <button class="maps-btn" onclick="findNearby('police stations near me')"><span>🚓</span> Police</button>
+            <button class="maps-btn" onclick="findNearby('petrol pumps near me')"><span>⛽</span> Petrol</button>
+        </div>
+        <hr style="border: 0.5px solid #333; margin: 15px 0;">
+        <div class="helpline-box" id="helpline-list"></div>
+        <button class="btn btn-red" style="margin-top: 15px;" onclick="goBackFromHelpline()">🔙 Go Back</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
