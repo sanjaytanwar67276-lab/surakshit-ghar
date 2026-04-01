@@ -93,6 +93,11 @@
         <button class="btn btn-blue" onclick="showScreen('receiver-screen')">👨‍👩‍👧 View Family Status</button>
         
         <hr style="border: 0.5px solid #333; margin: 25px 0;">
+        
+        <button class="btn btn-blue" id="mic-btn" onclick="toggleRecording()">🎤 Start Voice Record</button>
+        <p style="color: #888; font-size: 0.8rem; margin-top: 10px;">Stop karne par aawaz family ko jayegi aur phone mein save hogi.</p>
+        
+        <hr style="border: 0.5px solid #333; margin: 25px 0;">
         <button class="btn btn-sos" onclick="sendSOS()">🚨 SEND SOS ALERT</button>
         <p style="color: #888; font-size: 0.8rem; margin-top: 10px;">Press only in real emergency. It will alert everyone in your group.</p>
         
@@ -135,7 +140,7 @@
         <p style="color: #aaa; font-size: 0.9rem;">National Helplines (Tap to Call)</p>
 
         <div class="helpline-box" id="helpline-list">
-            </div>
+        </div>
         
         <button class="btn btn-red" style="margin-top: 15px;" onclick="goBackFromHelpline()">🔙 Go Back</button>
     </div>
@@ -154,10 +159,16 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
 
+    // GLOBALS
     let myName = "";
     let myFamilyCode = "";
     let timerId = null;
     const tickSound = new Audio('https://www.soundjay.com/buttons/sounds/button-09.mp3'); // BEEP SOUND
+    
+    // MIC GLOBALS
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
 
     // --- SMART BACK BUTTON LOGIC ---
     function goBackFromHelpline() {
@@ -168,14 +179,27 @@
         }
     }
 
-    // --- AUTO LOGIN CHECK ON APP LOAD ---
+    // --- AUTO LOGIN & NOTIFICATION PERMISSION ---
     window.onload = function() {
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+
         let savedName = localStorage.getItem("sg_name");
         let savedCode = localStorage.getItem("sg_code");
         if(savedName && savedCode) {
             document.getElementById('user-name').value = savedName;
             document.getElementById('family-code').value = savedCode;
-            login(); // Seedha app ke andar le jayega
+            login(); 
+        }
+    }
+
+    // --- NATIVE ANDROID NOTIFICATION FUNCTION ---
+    function showNotification(title, message) {
+        if (Notification.permission === "granted") {new Notification(title, {
+                body: message,
+                icon: "https://cdn-icons-png.flaticon.com/512/1161/1161388.png"
+            });
         }
     }
 
@@ -196,6 +220,7 @@
         let mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(query);
         window.open(mapsUrl, "_blank");
     }
+
     // --- 40 EMERGENCY HELPLINE NUMBERS ---
     const helplines = [
         { name: "National Emergency", num: "112" }, { name: "Police", num: "100" },
@@ -257,7 +282,6 @@
         myName = nameInput;
         myFamilyCode = codeInput.toUpperCase();
         
-        // SAVE FOR AUTO-LOGIN
         localStorage.setItem("sg_name", myName);
         localStorage.setItem("sg_code", myFamilyCode);
 
@@ -267,9 +291,9 @@
         showScreen('dashboard-screen');
         listenForAlerts(); 
         loadGroupMembers(); 
+        listenForVoice(); // MIC WALA LISTENER
     }
 
-    // --- LOGOUT FUNCTION ---
     function logoutApp() {
         let confirmLogout = confirm("🚪 Kya aap sach mein group se bahar aana chahte hain?");
         if(confirmLogout) {
@@ -297,7 +321,7 @@
     slider.oninput = function() { document.getElementById("time-val").innerText = this.value; }
 
     async function updateData() {
-        tickSound.play().catch(e => console.log("Sound error")); // BEEP SOUND HOGA
+        tickSound.play().catch(e => console.log("Sound error")); 
 
         let currentBat = 100;
         try {
@@ -324,10 +348,13 @@
                         lat: pos.coords.latitude, lon: pos.coords.longitude, battery: currentBat,
                         time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })
                     });
+                    
+                    showNotification("📍 Location Sent", "Battery: " + currentBat + "% - System Active");
                 },
                 function(err) {
                     document.getElementById('loc-stat').innerText = "Location: Failed ❌";
                     document.getElementById('loc-stat').style.color = "#ff4444";
+                    showNotification("❌ Location Failed", "GPS signal nahi mil raha.");
                 }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
             );
         }
@@ -335,7 +362,7 @@
 
     function startSending() {
         let interval = document.getElementById("time-slider").value;
-        alert("Service Started! Updating every " + interval + " minute(s).");
+        showNotification("🛡️ Service Started", "Updating every " + interval + " minute(s).");
         document.getElementById('start-btn').innerText = "🛡️ SERVICE IS RUNNING";
         document.getElementById('start-btn').style.background = "#444";
         updateData();
@@ -362,17 +389,94 @@
         });
     }
 
+    // --- FIX KIYA HUA ALERTS FUNCTION ---
     function listenForAlerts() {
         db.ref('alerts/' + myFamilyCode).on('child_added', (snapshot) => {
             let data = snapshot.val();
-            // Sirf wahi alert dikhaye jo abhi (last 1 min) mein aaye ho
             if(data && (new Date().getTime() - data.timestamp < 60000)) {
                 document.getElementById('danger-alert').style.display = "block";
                 document.getElementById('danger-alert').innerText = "⚠️ " + data.msg;
+                showNotification("🚨 EMERGENCY ALERT", data.msg);
                 alert("EMERGENCY ALERT: " + data.msg); 
             }
         });
     }
+
+    // --- SMART MIC RECORDING FUNCTION ---
+    async function toggleRecording() {
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 } 
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 16000 });
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = e => {
+                    if(e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    audioChunks = []; 
+                    stream.getTracks().forEach(track => track.stop()); 
+
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const a = document.createElement('a');
+                    a.href = audioUrl;
+                    a.download = 'Surakshit_Ghar_Audio_' + new Date().getTime() + '.webm';
+                    a.click(); 
+
+                    let reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = function() {
+                        db.ref('voice_notes/' + myFamilyCode).push({
+                            sender: myName, audio: reader.result, time: new Date().getTime()
+                        });
+                        showNotification("🎤 Saboot Safe Hai", "Aawaz phone mein save aur family ko send ho gayi hai.");
+                    }
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                
+                let btn = document.getElementById('mic-btn');
+                btn.innerText = "🛑 Stop & Send Voice";
+                btn.style.background = "#ff4444"; 
+                
+            } catch (err) {
+                alert("❌ Mic permission required!");
+            }
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            let btn = document.getElementById('mic-btn');
+            btn.innerText = "🎤 Start Voice Record";
+            btn.style.background = "#00d2ff";
+        }
+    }
+
+    // --- LISTEN FOR INCOMING VOICE ---
+    function listenForVoice() {
+        db.ref('voice_notes/' + myFamilyCode).on('child_added', (snapshot) => {
+            let data = snapshot.val();
+            if (data && (new Date().getTime() - data.time < 120000) && data.sender !== myName) {
+                let audio = new Audio(data.audio);
+                audio.play().catch(e => console.log("Auto-play browser ne block kar diya"));
+                
+                let dangerBox = document.getElementById('danger-alert');
+                dangerBox.style.display = "block";
+                dangerBox.style.background = "#00d2ff";
+                dangerBox.innerText = "🎤 " + data.sender + " ka Voice Message baj raha hai!";
+                showNotification("🎤 Naya Voice Message", data.sender + " ne aawaz bheji hai!");
+                
+                setTimeout(() => { dangerBox.style.display = "none"; dangerBox.style.background = "#ff4444"; }, 5000);
+            }
+        });
+    }
+
 </script>
 
 </body>
